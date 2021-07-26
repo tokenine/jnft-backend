@@ -24,3 +24,4 @@ yarn-error.log*
 *.log
 .private
 build
+dist/**
