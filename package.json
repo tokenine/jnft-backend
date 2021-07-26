@@ -9,6 +9,7 @@
   "author": "Jimmyis <jimmy.israkhan@gmail.com>",
   "license": "ISC",
   "dependencies": {
+    "express": "^4.17.1",
     "typescript": "^4.3.5"
   }
 }
