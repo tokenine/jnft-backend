@@ -4,12 +4,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import Package, { version, latestUpdate } from './package.json';
+import corsConfig from './configs/cors';
 
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const app: Express = express();
 
+app.use(cors(corsConfig([`http://localhost:${PORT}`])));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
