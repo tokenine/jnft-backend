@@ -4,7 +4,8 @@ import { defaultMessageListener, defaultPatternListener } from '../pubsub';
 
 export const KEY_PREFIX = {
   PUBSUB: {
-    CHANNEL: "PUBSUB::SUBSCRIPTION-CHANNEL::"
+    CHANNEL: "PUBSUB::SUBSCRIPTION-CHANNEL//",
+    CLIENT_SUBSCRIPTION: "PUBSUB::CLIENT_SUBSCRIPTION//"
   }
 }
 
@@ -40,9 +41,9 @@ function createSubscriber(name: string, messageListener = defaultMessageListener
   const _db = connectIORedis();
 
   // Load all default and store subscription channel
-  _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}/DEFAULT`, 0, -1).then((_channels: string[]) => { if (_channels.length) { _subscriber.subscribe(_channels).then() }});
-  _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}/DEFAULT-PATTERN`, 0, -1).then((_channels: string[]) => { if (_channels.length) { _subscriber.psubscribe(_channels).then() }});
-  _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}/ALLCLIENT`, 0, -1).then((_clients: string[]) => { if (_clients.length) { _subscriber.subscribe(_clients).then() }});
+  _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}DEFAULT`, 0, -1).then((_channels: string[]) => { if (_channels.length) { _subscriber.subscribe(_channels).then() }});
+  _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}DEFAULT-PATTERN`, 0, -1).then((_channels: string[]) => { if (_channels.length) { _subscriber.psubscribe(_channels).then() }});
+  _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}ALLCLIENT`, 0, -1).then((_clients: string[]) => { if (_clients.length) { _subscriber.subscribe(_clients).then() }});
   // _db.zrange(`${KEY_PREFIX.PUBSUB.CHANNEL}/RESUME`, 0, -1).then((_channels: string[]) => { if (_channels.length) { _subscriber.subscribe(_channels).then() }});
 
   // _subscriber.pubsub("CHANNELS", "*").then((_channels: string[]) => console.log(_channels));
@@ -51,7 +52,7 @@ function createSubscriber(name: string, messageListener = defaultMessageListener
     _subscriber,
     subscription: _subscriber.condition.subscriber,
     to(channel: string) {
-      _subscriber.subscribe(channel);
+      return _subscriber.subscribe(channel);
     },
     onMessage: _subscriber.on("message", messageListener),
     onPattern: _subscriber.on("pmessage", patternListener),

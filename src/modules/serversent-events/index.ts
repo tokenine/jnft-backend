@@ -39,7 +39,7 @@ async function sseHandler (req: Request, res: Response, next: Function) {
     headers['Connection'] = 'keep-alive';
     res.writeHead(200, headers);
     res.write(`event: subscribe\n\ndata: ${JSON.stringify({ status: { success: true, message: `${clientId} subscribed to SSE as ${clientRole} successfully` } })}\n\n`);
-
+  
     req.on('close', () => {
       // console.log(`Connection closed for ${clientId}`);
       uncommitSSEClient(clientId, clientRole);
@@ -73,10 +73,12 @@ function uncommitSSEClient(clientId: string, clientRole: string) {
 
 function broadcastMessage(receivers: string[], payloadFn: (payloads: any) => I_SSEmessageObject, payloads: any) {
   receivers.forEach((receiverId: string) => {
-    // console.log("broadcaseMessage to", receiverId)
+    console.log("broadcaseMessage to", receiverId, $SSE.activeResponder[receiverId] ? "and is active" : "but is not active")
     const message_ = SSEmessageGenerator(payloadFn({ receiverId, payloads }));
     if ($SSE.activeResponder[receiverId]) {
-      $SSE.activeResponder[receiverId].write(message_)
+      $SSE.activeResponder[receiverId].write(message_);
+      // $SSE.activeResponder[receiverId].flush();
+      $SSE.activeResponder[receiverId].flushHeaders();
     }
   });
 }
