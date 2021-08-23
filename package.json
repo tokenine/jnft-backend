@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "serve:simple": "tsc && nodemon ./dist/index.js",
     "serve": "cross-env NODE_ENV=development concurrently \"tsc --watch\" \"nodemon -q dist/index.js\""
   },
   "author": "Jimmyis <jimmy.israkhan@gmail.com>",
@@ -24,5 +25,8 @@
     "rimraf": "^3.0.2",
     "tedis": "^0.1.12",
     "typescript": "^4.3.5"
+  },
+  "devDependencies": {
+    "@tsconfig/node14": "^1.0.1"
   }
 }
