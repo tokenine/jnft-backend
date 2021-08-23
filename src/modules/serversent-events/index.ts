@@ -59,15 +59,19 @@ async function commitSSEClient(clientId: string, clientRole: string, res: Respon
   const key_ = clientRole + "::" + clientId;
   $SSE.activeResponder[key_] = res;
   // $SSE.clients[clientRole][clientId] = $SSE.activeResponder[clientId];
-  $Redis.clients.db.main.set(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}/${clientRole}/${clientId}`, now);
-  await $Redis.clients.db.main.zadd(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}/ALLCLIENT`, "NX", now, key_);
+  //$Redis.clients.db.main.set(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}${clientRole}/${clientId}`, now);
+  await $Redis.clients.db.main.zadd(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}ALLCLIENT`, "NX", now, key_);
+  
+  console.log(`Commit SSE Client ${clientId} as ${clientRole}`);
 
   return true
 }
 
 function uncommitSSEClient(clientId: string, clientRole: string) {
-  delete $SSE.activeResponder[clientRole + "::" + clientId];
-  delete $SSE.clients[clientRole][clientId];
+  setTimeout(() => {
+    delete $SSE.activeResponder[clientRole + "::" + clientId];
+    // delete $SSE.clients[clientRole][clientId];
+  }, 15 * 60 * 1000)
 }
 
 

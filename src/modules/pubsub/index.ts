@@ -38,17 +38,18 @@ export async function defaultMessageListener (channel: string, payload: string) 
     if (client.toLowerCase() === "all") {
       // receiverList = [ ...receiverList, ...Object.keys($SSE.clients[GROUP]) ];
       receiverList = await $Redis.clients.db.main.zrange(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}/ALLCLIENT`, 0, -1);
+      console.log("Sending to all user", receiverList)
     } else {
       
       // Send to single user
       if (GROUP === "USER") {
         receiverList.push(channel);
       } else {
-        receiverList = await $Redis.clients.db.main.zrange(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}/${channel}`, 0, -1)
+        receiverList = await $Redis.clients.db.main.zrange(`${channel}`, 0, -1)
       }
+      console.log("Sending to Receiver List", receiverList)
     }
 
-    console.log("Receiver List", receiverList)
 
     const { message, id, event } = publishMessageDecoder(payload)
     $SSE.broadcastMessage(receiverList, ({ receiverId }: any) => ({ data: { event, id: id || channel, message } }));
@@ -68,7 +69,7 @@ export async function defaultPatternListener (pattern: string, channel: string, 
   
     let receiverList: string[] = await $Redis.clients.db.main.zrange(`${CHANNEL}`, 0, -1);
     // console.log(`Active Responder: ${Object.keys($SSE.activeResponder)}`)
-    // console.log("Receiver List", receiverList)
+    console.log("Sending to Receiver List", receiverList)
 
     const { message, id, event } = publishMessageDecoder(payload)
     $SSE.broadcastMessage(receiverList, ({ receiverId }: any) => ({ data: { event, id: id || channel, message } }));

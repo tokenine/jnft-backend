@@ -37,7 +37,7 @@ app.get('/sse/:clientid', $SSE.sseHandler)
 
 app.get('/debug/list/sse-client', (req: Request, res: Response) => {
   const list = Object.keys($SSE.clients).map((role: string) => Object.keys($SSE.clients[role])).reduce((_list, __list) => [..._list, ...__list]);
-  return res.json({ total: list.length, list })
+  return res.json({ total: list.length, list, responder: Object.keys($SSE.activeResponder) })
 });
 
 app.get('/debug/pubsub/list', (req: Request, res: Response) => {
