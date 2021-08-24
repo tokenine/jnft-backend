@@ -3,6 +3,7 @@ import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import compression from 'compression';
 import Package, { version, latestUpdate } from './package.json';
 import corsConfig from './configs/cors';
 import { $SSE, $Redis } from './modules';
@@ -14,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 const app: Express = express();
 
 app.use(cors());
+app.use(compression());
 // app.use(cors(corsConfig([`http://localhost:${PORT}`])));
 app.use(helmet());
 app.use(express.json());
