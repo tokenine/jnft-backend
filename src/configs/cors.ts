@@ -1,6 +1,8 @@
 const $whitelist = [
   `https://hoppscotch.io`,
-  `https://proxy.hoppscotch.io`
+  `https://proxy.hoppscotch.io`,
+  `https://tokenine-nft-khonkaen.web.app`,
+  `http://localhost:5001`
 ]
   
 export default function (whitelist: string[], options?: any) {
