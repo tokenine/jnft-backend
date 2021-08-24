@@ -51,7 +51,7 @@ export async function defaultMessageListener (channel: string, payload: string) 
     }
 
 
-    const { message, id, event } = publishMessageDecoder(payload)
+    const { message, id, event } = eventInterceptor(redisPublishMessageDecoder(payload))
     $SSE.broadcastMessage(receiverList, ({ receiverId }: any) => ({ data: { event, id: id || channel, message } }));
 
   } catch (error) {
@@ -71,7 +71,7 @@ export async function defaultPatternListener (pattern: string, channel: string, 
     // console.log(`Active Responder: ${Object.keys($SSE.activeResponder)}`)
     console.log("Sending to Receiver List", receiverList)
 
-    const { message, id, event } = publishMessageDecoder(payload)
+    const { message, id, event } = eventInterceptor(redisPublishMessageDecoder(payload))
     $SSE.broadcastMessage(receiverList, ({ receiverId }: any) => ({ data: { event, id: id || channel, message } }));
 
   } catch (error) {
@@ -79,15 +79,14 @@ export async function defaultPatternListener (pattern: string, channel: string, 
   }
 }
 
-function publishMessageDecoder(payload: string) {
+function redisPublishMessageDecoder(payload: string) {
   const format = payload.substring(0, 6)
   console.log("PublishMessageDecoder", format, payload)
 
   if (format === "JSON::") {
-    const { message, id, event } = JSON.parse(payload.substring(6))
-    // console.log(payload, message, event);
-    console.log("Message Broadcasting with SSE", "in JSON")
-    return { message, id, event }
+    const data = JSON.parse(payload.substring(6))
+    console.log("Message Broadcasting with SSE", "in JSON", data)
+    return data
   } else {
     const message = extractMessageByKey(payload, "/::MESSAGE::")
     const event = extractMessageByKey( payload, "/::EVENT::")
@@ -96,5 +95,39 @@ function publishMessageDecoder(payload: string) {
     console.log("Message Broadcasting with SSE", "in TEXT")
     return { message, id, event }
   }
+
+}
+
+
+const eventMatrix = {
+
+}
+
+function eventInterceptor (payload: any) {
+  console.log("eventInterceptor", payload)
+  let message, id, event;
+  const {
+    event_type, event_name, event_id,
+    subevent_name, activity_name
+  } = payload
+
+  if (subevent_name === "SELLSETUP") {
+    if (payload.data.sellingType === "OFFERING") {
+      
+    }
+    if (payload.data.sellingType === "AUCTION") {
+
+    }
+  }
+  
+  // Event Type Matcher at the primary level
+  // Match by subevent and activity
+  message = messageBroker(payload)
+
+
+  return { message, id, event }
+}
+
+function messageBroker(payload: any) {
 
 }

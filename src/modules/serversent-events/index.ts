@@ -41,7 +41,7 @@ async function sseHandler (req: Request, res: Response, next: Function) {
     res.write(`event: subscribe\n\ndata: ${JSON.stringify({ status: { success: true, message: `${clientId} subscribed to SSE as ${clientRole} successfully` } })}\n\n`);
   
     req.on('close', () => {
-      // console.log(`Connection closed for ${clientId}`);
+      console.log(`Connection closed for ${clientId}`);
       uncommitSSEClient(clientId, clientRole);
       // $Redis.clients.subscriber.unsubscribe("user::" + clientId);
     });
@@ -56,7 +56,7 @@ async function commitSSEClient(clientId: string, clientRole: string, res: Respon
 
   const now = new Date().getTime();
 
-  const key_ = clientRole + "::" + clientId;
+  const key_ = clientRole.toUpperCase() + "::" + clientId.toLowerCase();
   $SSE.activeResponder[key_] = res;
   // $SSE.clients[clientRole][clientId] = $SSE.activeResponder[clientId];
   //$Redis.clients.db.main.set(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}${clientRole}/${clientId}`, now);
@@ -68,10 +68,8 @@ async function commitSSEClient(clientId: string, clientRole: string, res: Respon
 }
 
 function uncommitSSEClient(clientId: string, clientRole: string) {
-  setTimeout(() => {
-    delete $SSE.activeResponder[clientRole + "::" + clientId];
+  delete $SSE.activeResponder[clientRole + "::" + clientId];
     // delete $SSE.clients[clientRole][clientId];
-  }, 15 * 60 * 1000)
 }
 
 
@@ -79,9 +77,11 @@ function broadcastMessage(receivers: string[], payloadFn: (payloads: any) => I_S
   receivers.forEach((receiverId: string) => {
     console.log("broadcaseMessage to", receiverId, $SSE.activeResponder[receiverId] ? "and is active" : "but is not active")
     const message_ = SSEmessageGenerator(payloadFn({ receiverId, payloads }));
+    console.log("Prepare to send message", message_, "to", receiverId)
     if ($SSE.activeResponder[receiverId]) {
+      console.log("Sending Message")
       $SSE.activeResponder[receiverId].write(message_);
-      // $SSE.activeResponder[receiverId].flush();
+      $SSE.activeResponder[receiverId].flush();
       $SSE.activeResponder[receiverId].flushHeaders();
     }
   });
