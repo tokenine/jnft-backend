@@ -99,35 +99,53 @@ function redisPublishMessageDecoder(payload: string) {
 }
 
 
-const eventMatrix = {
-
-}
-
-function eventInterceptor (payload: any) {
-  console.log("eventInterceptor", payload)
-  let message, id, event;
-  const {
-    event_type, event_name, event_id,
-    subevent_name, activity_name
-  } = payload
-
-  if (subevent_name === "SELLSETUP") {
+const eventRegistry: { [event_code: string]: Function } = {
+  "NFT:SELLSETUP:SETUP": (payload: any) => {
+    const { activity_name } = payload
     if (payload.data.sellingType === "OFFERING") {
       
     }
     if (payload.data.sellingType === "AUCTION") {
 
     }
+    return { messageCode: "", event: "NFT:SELLSETUP:SETUP", id: "" }
+  },
+  "NFT:SELLSETUP:CANCEL": (payload: any) => {
+    const { activity_name } = payload
+    if (payload.data.sellingType === "OFFERING") {
+      
+    }
+    if (payload.data.sellingType === "AUCTION") {
+
+    }
+    return { messageCode: "", event: "NFT:SELLSETUP:CANCEL", id: "" }
   }
+}
+
+function eventInterceptor (payload: any) {
+  console.log("eventInterceptor", payload)
+
+  const {
+    event_type, event_name, event_id,
+    event_code, activity_name
+  } = payload
+
+  console.log("eventInterceptor", {
+    event_type, event_name, event_id,
+    event_code, activity_name
+  }, "\n\n")
+
+  const { messageCode, id, event } = eventRegistry[event_code]
+    ? eventRegistry[event_code](payload)
+    : { messageCode: "UNKNOWN", id: "UNKNOWN", event: "UKNOWN" }
   
   // Event Type Matcher at the primary level
   // Match by subevent and activity
-  message = messageBroker(payload)
-
+  const message = messageBroker(messageCode)
 
   return { message, id, event }
 }
 
 function messageBroker(payload: any) {
-
+  return payload
 }
