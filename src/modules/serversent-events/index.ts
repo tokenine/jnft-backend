@@ -24,25 +24,40 @@ async function sseHandler (req: Request, res: Response, next: Function) {
   const headers = {
     'Content-Type': 'text/event-stream',
     'Connection': 'close',
-    'Cache-Control': 'no-cache'
+    'Cache-Control': 'no-store',
+    'X-Accel-Buffering': 'no',
   };
 
   const success = await commitSSEClient(clientId, clientRole, res);
 
   if (!success) {
     res.writeHead(200, headers);
-    return res.write(`event: subscribe\n\ndata: ${JSON.stringify({ status: { error: true, message: "Must include client id" }})}\n\n`);
+    return res.write(`event: connection\n\ndata: ${JSON.stringify({ event: 'connection', status: { error: true, message: "Must include client id" }})}\n\n`);
   } else {
     console.log(`Subscribe to ${clientRole}::${clientId}`)
     $Redis.clients.subscriber.main.to(`${clientRole}::${clientId}`);
 
     headers['Connection'] = 'keep-alive';
     res.writeHead(200, headers);
-    res.write(`event: subscribe\n\ndata: ${JSON.stringify({ status: { success: true, message: `${clientId} subscribed to SSE as ${clientRole} successfully` } })}\n\n`);
-  
+    res.write(`event: subscribe\n\ndata: ${JSON.stringify({ event: 'connection', status: { success: true, message: `${clientId} subscribed to SSE as ${clientRole} successfully` } })}\n\n`);
+    (res as any).flush();
+
+    const ping = setInterval(async () => {
+      //console.log(`ping ${clientId}`, res.write(`event: ping\n\ndata: ping\n\n`), (res as any).flush());
+      // await commitSSEClient(clientId, clientRole, res)
+      res.write(`event: ping\n\ndata: {"event":"ping"}\n\n`);
+      (res as any).flush()
+    }, 10000)
+
+    res.on('error', (err: Error) => {
+      console.error(`Connection error for ${clientId}`, err)
+    })
+
     req.on('close', () => {
       console.log(`Connection closed for ${clientId}`);
+      res.end(); // very important or message will not be received
       uncommitSSEClient(clientId, clientRole);
+      // clearInterval(ping)
       // $Redis.clients.subscriber.unsubscribe("user::" + clientId);
     });
   }
@@ -55,14 +70,15 @@ async function commitSSEClient(clientId: string, clientRole: string, res: Respon
   }
 
   const now = new Date().getTime();
-
-  const key_ = clientRole.toUpperCase() + "::" + clientId.toLowerCase();
-  $SSE.activeResponder[key_] = res;
+  const key_ = clientRole + "::" + clientId;
+  if (!$SSE.activeResponder[key_]) {
+    $SSE.activeResponder[key_] = res;
+    console.log(`Commit SSE Client ${clientId} as ${clientRole}`);
+  }
   // $SSE.clients[clientRole][clientId] = $SSE.activeResponder[clientId];
   //$Redis.clients.db.main.set(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}${clientRole}/${clientId}`, now);
   await $Redis.clients.db.main.zadd(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}ALLCLIENT`, "NX", now, key_);
   
-  console.log(`Commit SSE Client ${clientId} as ${clientRole}`);
 
   return true
 }
@@ -81,8 +97,8 @@ function broadcastMessage(receivers: string[], payloadFn: (payloads: any) => I_S
     if ($SSE.activeResponder[receiverId]) {
       console.log("Sending Message")
       $SSE.activeResponder[receiverId].write(message_);
-      $SSE.activeResponder[receiverId].flush();
-      $SSE.activeResponder[receiverId].flushHeaders();
+      // $SSE.activeResponder[receiverId].flush();
+      // $SSE.activeResponder[receiverId].flushHeaders();
     }
   });
 }
