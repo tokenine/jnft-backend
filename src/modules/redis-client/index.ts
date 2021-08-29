@@ -13,7 +13,22 @@ export const $Redis: any = {
   KEY_PREFIX,
   clients: {
     db: {
-      main: connectIORedis()
+      main: connectIORedis(),
+      EMQ: connectIORedis( // Event Message Queue
+      // Sentinel (For production)
+      // {
+      //   sentinels: [
+      //     { host: "127.0.0.1", port: 26379 },
+      //     { host: "localhost", port: 26380 },
+      //   ],
+      //   name: "event_message_queue",
+      // }
+      //  Stand-alone (For development)
+        {
+          host: "127.0.0.1",
+          port: "7771"
+        }
+      ),
     },
     subscriber: {},
     publisher: connectIORedis()
@@ -33,7 +48,7 @@ function connectTedis(opts?: any) {
 }
 
 function connectIORedis(opts?: any) {
-  return new IORedis()
+  return new IORedis(opts)
 }
 
 function createSubscriber(name: string, messageListener = defaultMessageListener, patternListener = defaultPatternListener) {

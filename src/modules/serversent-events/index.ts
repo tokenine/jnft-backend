@@ -10,15 +10,14 @@ export const $SSE: any = {
     "SYSTEM": {},
     "ADMIN": {},
   },
-  sseHandler,
+  handler,
   broadcastMessage,
   commitSSEClient,
   uncommitSSEClient,
 }
-
 export default $SSE as any
 
-async function sseHandler (req: Request, res: Response, next: Function) {
+export async function handler (req: Request, res: Response, next: Function) {
   const clientId = (req.query.clientid as string || req.params.clientid as string || "").toLowerCase();
   const clientRole = (req.query.clientrole as string || req.params.clientrole as string || "user").toUpperCase();
   const headers = {
@@ -45,7 +44,7 @@ async function sseHandler (req: Request, res: Response, next: Function) {
     const ping = setInterval(async () => {
       //console.log(`ping ${clientId}`, res.write(`event: ping\n\ndata: ping\n\n`), (res as any).flush());
       // await commitSSEClient(clientId, clientRole, res)
-      res.write(`event: ping\n\ndata: {"event":"ping"}\n\n`);
+      res.write(`event: ping\n\nid: ping-${clientId}\n\ndata: {"event":"ping"}\n\n`);
       (res as any).flush()
     }, 10000)
 
@@ -57,7 +56,7 @@ async function sseHandler (req: Request, res: Response, next: Function) {
       console.log(`Connection closed for ${clientId}`);
       res.end(); // very important or message will not be received
       uncommitSSEClient(clientId, clientRole);
-      // clearInterval(ping)
+      clearInterval(ping)
       // $Redis.clients.subscriber.unsubscribe("user::" + clientId);
     });
   }
@@ -89,18 +88,21 @@ function uncommitSSEClient(clientId: string, clientRole: string) {
 }
 
 
-function broadcastMessage(receivers: string[], payloadFn: (payloads: any) => I_SSEmessageObject, payloads: any) {
+function broadcastMessage(receivers: string[], payloadFn: (payloads: any) => I_SSEmessageObject, payload: any) {
+  console.log("broadcastMessage", receivers, payload);
+
   receivers.forEach((receiverId: string) => {
-    console.log("broadcaseMessage to", receiverId, $SSE.activeResponder[receiverId] ? "and is active" : "but is not active")
-    const message_ = SSEmessageGenerator(payloadFn({ receiverId, payloads }));
+    console.log("broadcastMessage to", receiverId, $SSE.activeResponder[receiverId] ? "and is active" : "but is not active")
+    const message_ = SSEmessageGenerator(payloadFn({ receiverId, payload }));
     console.log("Prepare to send message", message_, "to", receiverId)
     if ($SSE.activeResponder[receiverId]) {
       console.log("Sending Message")
       $SSE.activeResponder[receiverId].write(message_);
       // $SSE.activeResponder[receiverId].flush();
-      // $SSE.activeResponder[receiverId].flushHeaders();
+      $SSE.activeResponder[receiverId].flushHeaders();
     }
   });
+  return true
 }
 
 function SSEmessageGenerator({ data, id, event }: I_SSEmessageObject) {
