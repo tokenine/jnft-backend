@@ -144,10 +144,26 @@ async function transformBroadcastMessage(eventMessage: any) {
   }
 }
 
+setTimeout(async () => {
+  await changeKey()
+
+}, 5000)
+async function changeKey() {
+  const KEYS = await $Redis.clients.db.main.keys("NFT_INFO//*")
+  KEYS.map(async (key: string) => {
+    // const _old = await $Redis.clients.db.main.hget(key, "creator")
+    // const _new = await $Redis.clients.db.main.hset(key, "owner", _old)
+    const _result = await $Redis.clients.db.main.hdel(key, "creator")
+    console.log(key, _result)
+  })
+}
+
 async function getReceiverList(eventMessagePayload: any) {
   const { channel_type, channel_id, action } = eventMessagePayload;
   let receiverList: string[] = [];
 
+  console.log("Get Receiver List", action, channel_type, channel_id)
+  
   if (action === "EVENT:SUBSCRIBE" && channel_type === "NFT") {
     const owner = await $Redis.clients.db.main.hget(`NFT_INFO//${channel_id}`, `owner`)
     receiverList = [`USER::${owner}`] // TODO: Change to owner ID
