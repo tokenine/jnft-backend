@@ -26,12 +26,10 @@ async function getNotification(client_id: string, hash?: string, opts?: any) {
 }
 
 async function getSubscription(client_id: string, hash?: string, opts?: any) {
-  const start = 0;
-  const end = 10;
   const CLIENT = "USER" + "::" + client_id;
 
   return {
-    list: await $Redis.clients.db.main.zrange(`${$Redis.KEY_PREFIX.PUBSUB.CLIENT_SUBSCRIPTION}${CLIENT}`, start, end) || [],
+    list: await $Redis.clients.db.main.zrange(`${$Redis.KEY_PREFIX.PUBSUB.CLIENT_SUBSCRIPTION}${CLIENT}`, 0, -1) || [],
     hash: "",
   }
 }
