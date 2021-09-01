@@ -279,11 +279,21 @@ async function subscribe(payload: IEventPayload) {
 
 async function unsubscribe (payload: IEventPayload) {
   let result_ = { status: { code: 200, message: "Event unsubscribe successfully", payload }, data: { }, };
-  const { action, now, debug/* , client_id, client_role, channel_type, channel_id */ } = payload;
+  const { action, now, debug, event_code, client_id, client_role, channel_type, channel_id } = payload;
 
   if ($Redis.clients.db) {
-    const { CLIENT, KEY } = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
-    const { KEY: KEY_CLIENTSUBSCRIPTION, CHANNEL } = createKeyPattern(KeyPatternType.CLIENT_SUBSCRIPTION, payload)
+    let CLIENT, KEY, KEY_CLIENTSUBSCRIPTION, CHANNEL
+    if (event_code === "USER:UNFOLLOW") {
+      // const keyPatternPubSubChannel = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
+      // CLIENT = keyPatternPubSubChannel.CLIENT;
+      // KEY = keyPatternPubSubChannel.KEY;
+      CLIENT = "USER::" + client_id
+      KEY = "PUBSUB::SUBSCRIPTION-CHANNEL//USERFOLLOW::" + channel_id
+
+      const keyPatternClientSubscription  = createKeyPattern(KeyPatternType.CLIENT_SUBSCRIPTION, payload)
+      KEY_CLIENTSUBSCRIPTION = keyPatternClientSubscription.KEY;
+      CHANNEL = keyPatternClientSubscription.CHANNEL
+    }
     
     const commandOptions = "";
     const exists = (await $Redis.clients.db.main.exists(KEY)) == 1 ? true : false;
@@ -295,10 +305,10 @@ async function unsubscribe (payload: IEventPayload) {
     // TODO: Auto unsubscribe when key was removed or no member remains.
     // $Redis.clients.subscriber.main.to(KEY);
     
-    debug && console.log(`CHECK REDIS:\n ACTION => ${action}\n KEY => ${KEY}\n KEY EXISTS => ${exists}\n COMMAND-OPTION => ${commandOptions}\n SCORE => ${now}\n CLIENT => ${CLIENT}\n CHANNEL => ${CHANNEL}\n`,
-      `REDIS_RESULT: ${KEY} => ${_result_redis}\n`,
-      `REDIS_RESULT: ${KEY_CLIENTSUBSCRIPTION} => ${_result_redis_1}\n`,
-    );
+    // debug && console.log(`CHECK REDIS:\n ACTION => ${action}\n KEY => ${KEY}\n KEY EXISTS => ${exists}\n COMMAND-OPTION => ${commandOptions}\n SCORE => ${now}\n CLIENT => ${CLIENT}\n CHANNEL => ${CHANNEL}\n`,
+    //   `REDIS_RESULT: ${KEY} => ${_result_redis}\n`,
+    //   `REDIS_RESULT: ${KEY_CLIENTSUBSCRIPTION} => ${_result_redis_1}\n`,
+    // );
 
     // Set subscriber client to listen to the event
     // await $Redis.clients.subscriber.main.to(KEY);
@@ -333,7 +343,7 @@ async function publish (payload: IEventPayload) {
 
     console.log("Publish Payload", payload)
 
-    const KEY = `EVENT_MESSAGE_QUEUE:MAIN`
+    const KEY = `EVENT_MESSAGE_QUEUE:MAIN`;
     const [ EVENTID, SCORE, ENCODEDMESSAGE ] = encodeEventMessage(payload)
     const RedisResults = []
     
