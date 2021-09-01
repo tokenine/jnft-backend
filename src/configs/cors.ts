@@ -4,6 +4,7 @@ const $whitelist = [
   `https://tokenine-nft-khonkaen.web.app`,
   `http://localhost:5001`,
   `https://test.jnft.digital`,
+  `https://jnft-dev.web.app`,
 ]
   
 export default function (whitelist: string[], options?: any) {
