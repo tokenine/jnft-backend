@@ -119,6 +119,9 @@ createObserver("event-message-broadcast",
         //
         await $Redis.clients.db.EMQ.zadd(`EVENT_MESSAGE_SENT:MAIN`, SCORE, EVENTID)
         await $Redis.clients.db.EMQ.zrem(`EVENT_MESSAGE_QUEUE:MAIN`, EVENTID)
+
+        // Added Notification to each receiver.
+        receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
       }
   
       // As of an operation completed, set processing flag to ready for another queue
