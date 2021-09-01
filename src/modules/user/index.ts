@@ -16,8 +16,8 @@ export async function handler(req: Request, res: Response) {
 }
 
 async function getNotification(client_id: string, hash?: string, opts?: any) {
-  const start = 0;
-  const end = 10;
+  const start = 0; // Start at the latest
+  const end = 9; // Stop at row #10
 
   return {
     list: await $Redis.clients.db.main.zrange(`EVENT:RELATED//USER:${client_id}`, start, end) || [],
