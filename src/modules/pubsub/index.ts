@@ -118,7 +118,7 @@ createObserver("event-message-broadcast",
     }
   },
   {},
-  5000
+  100
 )
 
 const messageBroadcastEventRegistry: { [eventCode: string]: any} = {
@@ -127,8 +127,8 @@ const messageBroadcastEventRegistry: { [eventCode: string]: any} = {
   "NFT:SELLINVOLVE:OFFERPRICE:CANCEL": eventNFT_SELLINVOLVE_OFFERPRICE,
   "NFT:SELLINVOLVE:AUCTION:BID": eventNFT_SELLINVOLVE_AUCTION,
   // "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT"
-  // "NFT:SELLINVOLVE:AUCTION:SENDNFT"
-  // "NFT:SELLINVOLVE:AUCTION:CLAIMNFT"
+  "NFT:SELLINVOLVE:AUCTION:SENDNFT": eventNFT_SELLINVOLVE_AUCTION,
+  "NFT:SELLINVOLVE:AUCTION:CLAIMNFT": eventNFT_SELLINVOLVE_AUCTION,
   // "USER:FOLLOW": subscribeUserFollow(payload),
 }
 
@@ -204,13 +204,67 @@ async function eventNFT_SELLINVOLVE_OFFERPRICE({ eventMessage, SCORE, EVENTID }:
   
 }
 
-async function eventNFT_SELLINVOLVE_AUCTION(payload: any) {
-  // Subscribe user to NFT activity channel
-  return await subscribeUserToNFTChannel(payload)
+async function eventNFT_SELLINVOLVE_AUCTION({ eventMessage, SCORE, EVENTID }: any) {
+  const { event_code, channel_id } = eventMessage
+  // let receiverList = []
+  console.log("eventNFT_SELLINVOLVE_AUCTION", eventMessage)
+  const owner = await $Redis.clients.db.main.hget(`NFT_INFO//${channel_id}`, `owner`)
+
+  if (event_code === "NFT:SELLINVOLVE:AUCTION:BID") {
+    // Subscribe user to NFT activity channel
+
+    // Owner will get notification for the new update bid
+
+    // The last bidder (previous one) will get notification that one lose the auction
+    
+    await subscribeUserToNFTChannel(eventMessage)
+
+    $SSE.broadcastMessage([`USER::${owner}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
+  
+    // The last bidder (previous one) will get notification that one lose the auction
+    if (eventMessage.data.topBid) {
+      const { bidder } = eventMessage.data.topBid
+      $SSE.broadcastMessage([`USER::${bidder}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage, event_code: "NFT:SELLINVOLVE:AUCTION:BID:LOSE" });  
+    }
+  } else if (event_code === "NFT:SELLINVOLVE:AUCTION:SENDNFT") {
+    // When a NFT auction session was end, and seller send the NFT to a bid winner
+
+    // The bid winner will get notification that one has own the NFT
+    const { bidWinner } = eventMessage.data
+    $SSE.broadcastMessage([`USER::${bidWinner}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
+
+    // And creator (if not the same as owner) will get receive for a message (with commission)
+
+  } else if (event_code === "NFT:SELLINVOLVE:AUCTION:CLAIMNFT") {
+    // When a NFT auction session was end, and the bid winner claim the NFT
+    // The owner will get notification that the bid winner has claim their NFT
+    const owner_ = eventMessage.data.owner
+    $SSE.broadcastMessage([`USER::${owner_}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
+
+    // And creator (if not the same as owner) will get receive for a message (with commission)
+
+  }
+  // Populate message receiver list
+  // Send event message to owner
+  // receiverList = await getReceiverList(eventMessage);
+  // // Owner will get notification for the new update bid
+
+
+
+  // // Transform Message
+  // const broadcastMessage = await transformBroadcastMessage(eventMessage);
+  
+  // // Broadcast the message out
+  // $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
+  // // Added Notification to each receiver.
+  // receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
+
 }
 
 async function subscribeUserToNFTChannel(payload: any) {
   const { channel_id, client_role, client_id,sent_timestamp } = payload
+  console.log("subscribeUserToNFTChannel", payload)
+
   const CLIENT = client_role.toUpperCase() + "::" + client_id.toLowerCase()
   return await $Redis.clients.db.main.zadd(`PUBSUB::SUBSCRIPTION-CHANNEL//NFT-ACTIVITY::${channel_id}/SELL`, sent_timestamp, CLIENT)
 }
@@ -280,20 +334,9 @@ async function receiverListOfEventPublish(eventMessagePayload: any) {
     
     // And creator (if not the same as owner) will get receive for a message (with commission)
   } else if (event_code === "NFT:SELLINVOLVE:AUCTION:BID") {
-    // Owner will get notification for the new update bid
-
-    // The last bidder (previous one) will get notification that one lose the auction
     
   } else if (event_code === "NFT:SELLINVOLVE:AUCTION:SENDNFT") {
-    // When a NFT auction session was end, and seller send the NFT to a bid winner
-    // The bid winner will get notification that one has own the NFT
-  
-    // And creator (if not the same as owner) will get receive for a message (with commission)
   } else if (event_code === "NFT:SELLINVOLVE:AUCTION:CLAIMNFT") {
-    // When a NFT auction session was end, and the bid winner claim the NFT
-    // The owner will get notification that the bid winner has claim their NFT
-
-    // And creator (if not the same as owner) will get receive for a message (with commission)
 
   } else {
     const CHANNEL = `${channel_type}::${channel_id}`;
