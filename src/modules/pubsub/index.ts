@@ -89,24 +89,28 @@ createObserver("event-message-broadcast",
       // Get latest message and receiver list to be proceeded
       const [ EVENTID, SCORE ] = await $Redis.clients.db.EMQ.zrange(`EVENT_MESSAGE_QUEUE:MAIN`, 0, 0, "WITHSCORES")
   
-      const [ type, rawEventMessage ] = (await $Redis.clients.db.EMQ.hget(`EVENT_MESSAGE_HISTORY:MAIN`, EVENTID)).split("::")
-
-      // const { eventPayload, receiverList } = JSON.parse(rawEventMessage, reviver)
-
-      const eventMessage = type === "JSON" && Object.fromEntries(JSON.parse(rawEventMessage, reviver))
-      await messageBroadcastByEvent({ eventMessage, EVENTID, SCORE })
-
-      // TODOs: 
-      // Add On success handling
-      // Add On fail handling
-      // Add time ???
-      // Store it to event history db (Asynchronously)
-      //
-      await $Redis.clients.db.EMQ.zadd(`EVENT_MESSAGE_SENT:MAIN`, SCORE, EVENTID)
-      await $Redis.clients.db.EMQ.zrem(`EVENT_MESSAGE_QUEUE:MAIN`, EVENTID)
+      const eventMssageHistory = await $Redis.clients.db.EMQ.hget(`EVENT_MESSAGE_HISTORY:MAIN`, EVENTID)
+      if (eventMssageHistory) {
+        const [ type, rawEventMessage ] = eventMssageHistory.split("::")
+        // const { eventPayload, receiverList } = JSON.parse(rawEventMessage, reviver)
   
-      // As of an operation completed, set processing flag to ready for another queue
-      // On completed, set processing to false
+        const eventMessage = type === "JSON" && Object.fromEntries(JSON.parse(rawEventMessage, reviver))
+        await messageBroadcastByEvent({ eventMessage, EVENTID, SCORE })
+  
+        // TODOs: 
+        // Add On success handling
+        // Add On fail handling
+        // Add time ???
+        // Store it to event history db (Asynchronously)
+        //
+        await $Redis.clients.db.EMQ.zadd(`EVENT_MESSAGE_SENT:MAIN`, SCORE, EVENTID)
+        await $Redis.clients.db.EMQ.zrem(`EVENT_MESSAGE_QUEUE:MAIN`, EVENTID)
+    
+        // As of an operation completed, set processing flag to ready for another queue
+        // On completed, set processing to false
+      }
+      
+
     } catch (error) {
       console.error(error)
     } finally {
@@ -114,7 +118,7 @@ createObserver("event-message-broadcast",
     }
   },
   {},
-  100
+  5000
 )
 
 const messageBroadcastEventRegistry: { [eventCode: string]: any} = {
@@ -360,27 +364,29 @@ export async function messageQueueAppend(payload: any, channel: string, receiver
 export async function defaultMessageListener(channel: string, payload: string) {
   try {
     console.log("On Message Published", channel, payload)
-    const [GROUP, client] = channel.split("::");
-
-    let receiverList: string[] = [];
-    
-    // Send to all
-    if (client.toLowerCase() === "all") {
-      // receiverList = [ ...receiverList, ...Object.keys($SSE.clients[GROUP]) ];
-      receiverList = await $Redis.clients.db.main.zrange(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}/ALLCLIENT`, 0, -1);
-      console.log("Sending to all user", receiverList)
-    } else {
+    if (typeof channel === 'string' && payload) {
+      const [GROUP, client] = channel.split("::");
+  
+      let receiverList: string[] = [];
       
-      // Send to single user
-      if (GROUP === "USER") {
-        receiverList.push(channel);
+      // Send to all
+      if (client.toLowerCase() === "all") {
+        // receiverList = [ ...receiverList, ...Object.keys($SSE.clients[GROUP]) ];
+        receiverList = await $Redis.clients.db.main.zrange(`${$Redis.KEY_PREFIX.PUBSUB.CHANNEL}/ALLCLIENT`, 0, -1);
+        console.log("Sending to all user", receiverList)
       } else {
-        receiverList = await $Redis.clients.db.main.zrange(`${channel}`, 0, -1)
+        
+        // Send to single user
+        if (GROUP === "USER") {
+          receiverList.push(channel);
+        } else {
+          receiverList = await $Redis.clients.db.main.zrange(`${channel}`, 0, -1)
+        }
+        console.log("Sending to Receiver List", receiverList)
       }
-      console.log("Sending to Receiver List", receiverList)
+      await messageQueueAppend(payload, channel, receiverList)
     }
 
-    await messageQueueAppend(payload, channel, receiverList)
 
   } catch (error) {
     console.error(error);
