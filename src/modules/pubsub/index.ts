@@ -98,9 +98,10 @@ createObserver("event-message-broadcast",
 
         // const message = publishMessage(eventMessage)
         // console.log(message)
+        const sender = await manageSenderData(eventMessage);
         
         // eventPayload: { event, id, data: { event, id, message } }
-        const receiverList = await getReceiverList(eventMessage)
+        const receiverList = await getReceiverList(eventMessage);
         
         // Transform Message Here
         const broadcastMessage = await transformBroadcastMessage(eventMessage);
@@ -134,6 +135,44 @@ createObserver("event-message-broadcast",
   {},
   100
 )
+
+
+function manageSenderDataByEvent(eventCode: string, payload = {}) {
+  const events: { [eventCode: string]: any} = {
+    "NFT:SELLINVOLVE:OFFERPRICE:SET": eventNFT_SELLINVOLVE_OFFERPRICE_SET(payload),
+    // "NFT:SELLINVOLVE:OFFERPRICE:UPDATE" ตอนกดอัพเดทราคา
+    // "NFT:SELLINVOLVE:OFFERPRICE:CANCEL" ตอนยกเลิกเสนอราคา
+
+
+    // "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT"
+    // "NFT:SELLINVOLVE:AUCTION:SENDNFT"
+    // "NFT:SELLINVOLVE:AUCTION:CLAIMNFT"
+
+
+    // "NFT:SELLINVOLVE:AUCTION:BID"
+    // "USER:FOLLOW": subscribeUserFollow(payload),
+  }
+  return events[eventCode]
+}
+
+
+async function manageSenderData(eventMessage: any) {
+  const { event_code, client_id } = eventMessage;
+  if (event_code) {
+    const result_ = manageSenderDataByEvent(event_code, eventMessage)
+  }
+}
+
+async function eventNFT_SELLINVOLVE_OFFERPRICE_SET(payload: any) {
+  // Subscribe user to NFT activity channel
+  return await subscribeUserToNFTChannel(payload)
+}
+
+async function subscribeUserToNFTChannel(payload: any) {
+  const { channel_id, client_role, client_id,sent_timestamp } = payload
+  const CLIENT = client_role.toUpperCase() + "::" + client_id.toLowerCase()
+  return await $Redis.clients.db.main.zadd(`PUBSUB::SUBSCRIPTION-CHANNEL//NFT-ACTIVITY::${channel_id}/SELL`, sent_timestamp, CLIENT)
+}
 
 async function transformBroadcastMessage(eventMessage: any) {
   const { channel_type, channel_id, action } = eventMessage;
