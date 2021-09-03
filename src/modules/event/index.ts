@@ -220,12 +220,31 @@ async function remove(payload: IEventPayload) {
   return [ result_ ]
 }
 
+
 async function subscribe(payload: IEventPayload) {
   let result_ = { status: { code: 200, message: "Event subscribe successfully", payload }, data: { }, };
-  const { action, now, debug/* , client_id, client_role, channel_type, channel_id */ } = payload;
+  const { event_code } = payload
 
-  if ($Redis.clients.db) {
-    // const RedisDB = $Redis.clients.db;
+
+  if ($Redis.clients.db && event_code) {
+    const _result = await subscriptionEvents(event_code, payload)
+    console.log("SUBSCRIPTION RESULT", _result)
+  }
+
+  return [ result_ ]
+}
+
+function subscriptionEvents(eventCode: string, payload = {}) {
+  const events: { [eventCode: string]: any} = {
+    "USER:FOLLOW": subscribeUserFollow(payload),
+  }
+  return events[eventCode]
+}
+
+async function subscribeDefault(payload: any) {
+  const { action, now, debug, event_code, client_id, channel_id, /* , client_role, channel_type */ } = payload;
+
+  // const RedisDB = $Redis.clients.db;
     // const RedisSubscriber = $Redis.clients.subscriber.main
 
     // Create a key to indicate event is active
@@ -240,14 +259,14 @@ async function subscribe(payload: IEventPayload) {
     // $Redis.clients.subscriber.main.to(KEY);
     // Publish to subscribed channel for active subscribers (Opt-in)
 
-    const { CLIENT, KEY } = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
+    let { CLIENT, KEY } = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
     const { KEY: KEY_CLIENTSUBSCRIPTION, CHANNEL } = createKeyPattern(KeyPatternType.CLIENT_SUBSCRIPTION, payload)
-    
+
     // Create a sorted set for add user to subscribe to the event, and add event creator to the list
     const commandOptions = "NX";
     const exists = (await $Redis.clients.db.main.exists(KEY)) == 1 ? true : false;
     const _result_redis = await $Redis.clients.db.main.zadd(KEY, "NX", now, CLIENT);
-    
+
     // TODO: Store subscription id to each client for map and use with UI
     const _result_redis_1 = await $Redis.clients.db.main.zadd(KEY_CLIENTSUBSCRIPTION, "NX", now, CHANNEL);
     const _result_subscription = await $Redis.clients.subscriber.main.to(KEY);
@@ -272,43 +291,45 @@ async function subscribe(payload: IEventPayload) {
     // Publish welcome message to subscribed channel for active subscribers (Opt-in)
 
     // Update event key to Firebase and/or Redis (Create endpoint to access it)
-  }
-
-  return [ result_ ]
 }
 
-async function unsubscribe (payload: IEventPayload) {
-  let result_ = { status: { code: 200, message: "Event unsubscribe successfully", payload }, data: { }, };
-  const { action, now, debug, event_code, client_id, client_role, channel_type, channel_id } = payload;
+async function subscribeUserFollow(payload: any) { 
+  const { action, now, debug, event_code, client_id, channel_id, /* , client_role, channel_type */ } = payload;
 
-  if ($Redis.clients.db) {
-    let CLIENT, KEY, KEY_CLIENTSUBSCRIPTION, CHANNEL
-    if (event_code === "USER:UNFOLLOW") {
-      // const keyPatternPubSubChannel = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
-      // CLIENT = keyPatternPubSubChannel.CLIENT;
-      // KEY = keyPatternPubSubChannel.KEY;
-      CLIENT = "USER::" + client_id
-      KEY = "PUBSUB::SUBSCRIPTION-CHANNEL//USERFOLLOW::" + channel_id
-
-      const keyPatternClientSubscription  = createKeyPattern(KeyPatternType.CLIENT_SUBSCRIPTION, payload)
-      KEY_CLIENTSUBSCRIPTION = keyPatternClientSubscription.KEY;
-      CHANNEL = keyPatternClientSubscription.CHANNEL
-    }
+    // Create a key to indicate event is active
+    // Create a sorted set for add user to subscribe to the event, and add event creator to the list
+    // Set subscriber client to listen to the event
+    // Publish to subscribed channel for active subscribers (Opt-in)
     
-    const commandOptions = "";
+    // const KEY = `PUBSUB::SUBSCRIPTION-CHANNEL//USERFOLLOW::${channel_id.toLowerCase()}`;
+    // const CLIENT = `USER::${client_id.toLowerCase()}`;
+    // const KEY_CLIENTSUBSCRIPTION = ``
+    // const CHANNEL = ``
+    let { CLIENT, KEY } = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
+    const { KEY: KEY_CLIENTSUBSCRIPTION, CHANNEL } = createKeyPattern(KeyPatternType.CLIENT_SUBSCRIPTION, payload)
+
+    // Create a sorted set for add user to subscribe to the event, and add event creator to the list
+    const commandOptions = "NX";
     const exists = (await $Redis.clients.db.main.exists(KEY)) == 1 ? true : false;
-    const _result_redis = await $Redis.clients.db.main.zrem(KEY, CLIENT);
-    const _result_redis_1 = await $Redis.clients.db.main.zrem(KEY_CLIENTSUBSCRIPTION, CHANNEL);
+    const _result_redis = await $Redis.clients.db.main.zadd(KEY, "NX", now, CLIENT);
 
-    const _result_unsubscription = await $Redis.clients.subscriber.main._subscriber.unsubscribe(KEY);
+    // TODO: Store subscription id to each client for map and use with UI
+    const _result_redis_1 = await $Redis.clients.db.main.zadd(KEY_CLIENTSUBSCRIPTION, "NX", now, CHANNEL);
+    const _result_subscription = await $Redis.clients.subscriber.main.to(KEY);
 
-    // TODO: Auto unsubscribe when key was removed or no member remains.
-    // $Redis.clients.subscriber.main.to(KEY);
+    const [ EVENTID, SCORE, ENCODEDMESSAGE ] = encodeEventMessage(payload)
+    const RedisResults = []
     
-    // debug && console.log(`CHECK REDIS:\n ACTION => ${action}\n KEY => ${KEY}\n KEY EXISTS => ${exists}\n COMMAND-OPTION => ${commandOptions}\n SCORE => ${now}\n CLIENT => ${CLIENT}\n CHANNEL => ${CHANNEL}\n`,
-    //   `REDIS_RESULT: ${KEY} => ${_result_redis}\n`,
-    //   `REDIS_RESULT: ${KEY_CLIENTSUBSCRIPTION} => ${_result_redis_1}\n`,
-    // );
+    RedisResults.push({ action: "ADD_EVENT_QUEUE" , result: await $Redis.clients.db.EMQ.zadd(`EVENT_MESSAGE_QUEUE:MAIN`, SCORE, EVENTID) })
+    // Add Event Payload to Event History
+    RedisResults.push({ action: "ADD_EVENT_HISTORY" , result: await $Redis.clients.db.EMQ.hset(`EVENT_MESSAGE_HISTORY:MAIN`, EVENTID, ENCODEDMESSAGE) })
+
+
+    debug && console.log(`CHECK REDIS:\n ACTION => ${action}\n KEY => ${KEY}\n KEY EXISTS => ${exists}\n COMMAND-OPTION => ${commandOptions}\n SCORE => ${now}\n CLIENT => ${CLIENT}\n CHANNEL => ${CHANNEL}\n`,
+      `REDIS_RESULT: ${KEY} => ${_result_redis}\n`,
+      `REDIS_RESULT: ${KEY_CLIENTSUBSCRIPTION} => ${_result_redis_1}\n`,
+      `REDIS_PUBSUB_RESULT: ${KEY} => ${_result_subscription}\n`,
+    );
 
     // Set subscriber client to listen to the event
     // await $Redis.clients.subscriber.main.to(KEY);
@@ -316,11 +337,57 @@ async function unsubscribe (payload: IEventPayload) {
     // Publish welcome message to subscribed channel for active subscribers (Opt-in)
 
     // Update event key to Firebase and/or Redis (Create endpoint to access it)
+}
+
+async function unsubscribe (payload: IEventPayload) {
+  let result_ = { status: { code: 200, message: "Event unsubscribe successfully", payload }, data: { }, };
+  const { event_code } = payload
+
+  if ($Redis.clients.db && event_code) {
+    const _result = await unsubscriptionEvents(event_code, payload)
+    console.log("UNSUBSCRIPTION RESULT", _result)
   }
 
   return [ result_ ]
 }
 
+function unsubscriptionEvents(eventCode: string, payload = {}) {
+  const events: { [eventCode: string]: any} = {
+    "USER:UNFOLLOW": unsubscribeUserFollow(eventCode, payload),
+  }
+  return events[eventCode]
+}
+
+async function unsubscribeUserFollow(eventCode: string, payload: any) {
+  const { action, now, debug } = payload;
+  // let CLIENT, KEY, KEY_CLIENTSUBSCRIPTION, CHANNEL
+  let { CLIENT, KEY } = createKeyPattern(KeyPatternType.PUBSUBCHANNEL, payload)
+  const { KEY: KEY_CLIENTSUBSCRIPTION, CHANNEL } = createKeyPattern(KeyPatternType.CLIENT_SUBSCRIPTION, payload)
+
+  // console.log(event_code, CLIENT, KEY, KEY_CLIENTSUBSCRIPTION, CHANNEL)
+    
+  const commandOptions = "";
+  const exists = (await $Redis.clients.db.main.exists(KEY)) == 1 ? true : false;
+  const _result_redis = await $Redis.clients.db.main.zrem(KEY, CLIENT);
+  const _result_redis_1 = await $Redis.clients.db.main.zrem(KEY_CLIENTSUBSCRIPTION, CHANNEL);
+
+  // const _result_unsubscription = await $Redis.clients.subscriber.main._subscriber.unsubscribe(KEY);
+
+    // TODO: Auto unsubscribe when key was removed or no member remains.
+    // $Redis.clients.subscriber.main.to(KEY);
+    
+  debug && console.log(`CHECK REDIS:\n ACTION => ${action}\n KEY => ${KEY}\n KEY EXISTS => ${exists}\n COMMAND-OPTION => ${commandOptions}\n SCORE => ${now}\n CLIENT => ${CLIENT}\n CHANNEL => ${CHANNEL}\n`,
+    `REDIS_RESULT: ${KEY} => ${_result_redis}\n`,
+    `REDIS_RESULT: ${KEY_CLIENTSUBSCRIPTION} => ${_result_redis_1}\n`,
+  );
+
+    // Set subscriber client to listen to the event
+    // await $Redis.clients.subscriber.main.to(KEY);
+      
+    // Publish welcome message to subscribed channel for active subscribers (Opt-in)
+
+    // Update event key to Firebase and/or Redis (Create endpoint to access it)
+}
 
 async function publish (payload: IEventPayload) {
   let result_: I_EventFunctionResult = {

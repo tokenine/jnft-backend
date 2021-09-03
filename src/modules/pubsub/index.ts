@@ -95,8 +95,7 @@ createObserver("event-message-broadcast",
         // const { eventPayload, receiverList } = JSON.parse(rawEventMessage, reviver)
   
         const eventMessage = type === "JSON" && Object.fromEntries(JSON.parse(rawEventMessage, reviver))
-        // console.log(eventMessage)
-     
+
         // const message = publishMessage(eventMessage)
         // console.log(message)
         
@@ -148,7 +147,7 @@ async function transformBroadcastMessage(eventMessage: any) {
 }
 
 async function getReceiverList(eventMessagePayload: any) {
-  const { channel_type, channel_id, action } = eventMessagePayload;
+  const { channel_type, channel_id, action, event_code } = eventMessagePayload;
   let receiverList: string[] = [];
 
   console.log("Get Receiver List", action, channel_type, channel_id)
@@ -157,7 +156,7 @@ async function getReceiverList(eventMessagePayload: any) {
     const owner = await $Redis.clients.db.main.hget(`NFT_INFO//${channel_id}`, `owner`)
     receiverList = [`USER::${owner}`] // TODO: Change to owner ID
 
-  } else if (action === "EVENT:SUBSCRIBE" && channel_type === "USERFOLLOW") {
+  } else if (action === "EVENT:SUBSCRIBE" && channel_type === "USER:FOLLOW") {
     receiverList = [`USER::${channel_id}`]
 
   } else {
