@@ -3,6 +3,7 @@ const $whitelist = [
   `https://proxy.hoppscotch.io`,
   `https://tokenine-nft-khonkaen.web.app`,
   `http://localhost:5001`,
+  `http://localhost:5002`,
   `https://test.jnft.digital`,
   `https://jnft-dev.web.app`,
 ]
