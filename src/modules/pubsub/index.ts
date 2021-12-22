@@ -1,6 +1,9 @@
 import { Request, Response } from 'express'
+import keccak from 'keccak';
 import { $SSE, $Redis } from '..';
 import { publishMessageEncoder, reviver } from "../../functions";
+import { testSendNotificationToFirestore } from "../firebase"
+
 
 export const $PubSub = {
   // defaultChannels: ['main', 'test'] // Auto Subscribe on load
@@ -90,6 +93,7 @@ createObserver("event-message-broadcast",
       const [ EVENTID, SCORE ] = await $Redis.clients.db.EMQ.zrange(`EVENT_MESSAGE_QUEUE:MAIN`, 0, 0, "WITHSCORES")
   
       const eventMssageHistory = await $Redis.clients.db.EMQ.hget(`EVENT_MESSAGE_HISTORY:MAIN`, EVENTID)
+
       if (eventMssageHistory) {
         const [ type, rawEventMessage ] = eventMssageHistory.split("::")
         // const { eventPayload, receiverList } = JSON.parse(rawEventMessage, reviver)
@@ -129,11 +133,19 @@ const messageBroadcastEventRegistry: { [eventCode: string]: any} = {
   // "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT"
   "NFT:SELLINVOLVE:AUCTION:SENDNFT": eventNFT_SELLINVOLVE_AUCTION,
   "NFT:SELLINVOLVE:AUCTION:CLAIMNFT": eventNFT_SELLINVOLVE_AUCTION,
+  "CREATOR:APPROVAL:APPROVED": eventCREATOR_APPROVAL,
+  "CREATOR:APPROVAL:REJECTED": eventCREATOR_APPROVAL,
+  "NFT:APPROVAL:APPROVED": eventNFT_APPROVAL,
+  "NFT:APPROVAL:REJECTED": eventNFT_APPROVAL,
+  "TEST": eventTEST
   // "USER:FOLLOW": subscribeUserFollow(payload),
 }
 
 async function messageBroadcastByEvent(payload: any) {
   const event_code = payload.eventMessage.event_code
+  console.log("======================= messageBroadcastByEvent =======================")
+  console.log("EVENTCODE => ", event_code)
+  console.log("=======================================================================")
   if (event_code) {
     const fn = messageBroadcastEventRegistry[event_code] || genericMessageBroadcast
     await fn(payload)
@@ -261,6 +273,74 @@ async function eventNFT_SELLINVOLVE_AUCTION({ eventMessage, SCORE, EVENTID }: an
 
 }
 
+
+async function eventTEST({ eventMessage, SCORE, EVENTID }: any) {
+  console.log("=================================================================\n")
+  console.log("EVENT:TEST", EVENTID, SCORE, eventMessage)
+  console.log("=================================================================\n")
+  testSendNotificationToFirestore()
+  // // // Subscribe user to NFT activity channel
+  // // await subscribeUserToNFTChannel(eventMessage)
+
+  // // // Populate message receiver list
+  // // // const receiverList = await getReceiverList(eventMessage);
+  // // const receiverList = await getReceiverList(eventMessage);
+  // const receiverList = [`USER::${eventMessage.data.id}`] // TODO: TEMP/Refactor to function 
+
+  // // // Transform Message
+  // const broadcastMessage = await transformBroadcastMessage(eventMessage);
+  
+  // // // Broadcast the message out
+  // $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
+  // // // Added Notification to each receiver.
+  // receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
+}
+
+
+async function eventCREATOR_APPROVAL({ eventMessage, SCORE, EVENTID }: any) {
+  console.log("=================================================================\n")
+  console.log("EVENT:CREATOR:APPROVAL", EVENTID, SCORE, eventMessage)
+  console.log("=================================================================\n")
+  // // Subscribe user to NFT activity channel
+  // await subscribeUserToNFTChannel(eventMessage)
+
+  // // Populate message receiver list
+  // // const receiverList = await getReceiverList(eventMessage);
+  // const receiverList = await getReceiverList(eventMessage);
+  const receiverList = [`USER::${eventMessage.data.id}`] // TODO: TEMP/Refactor to function 
+
+  // // Transform Message
+  const broadcastMessage = await transformBroadcastMessage(eventMessage);
+  
+  // // Broadcast the message out
+  $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
+  // // Added Notification to each receiver.
+  receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
+}
+
+async function eventNFT_APPROVAL({ eventMessage, SCORE, EVENTID }: any) {
+  console.log("=================================================================\n")
+  console.log("EVENT:NFT:APPROVAL", EVENTID, SCORE, eventMessage)
+  console.log("=================================================================\n")
+  // // Subscribe user to NFT activity channel
+  // await subscribeUserToNFTChannel(eventMessage)
+
+  // // Populate message receiver list
+  // // const receiverList = await getReceiverList(eventMessage);
+  // const receiverList = await getReceiverList(eventMessage);
+  const receiverList = [`USER::${eventMessage.data.creator}`] // TODO: TEMP/Refactor to function 
+
+  // // Transform Message
+  const broadcastMessage = await transformBroadcastMessage(eventMessage);
+  
+  // // Broadcast the message out
+  $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
+  // // Added Notification to each receiver.
+  receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
+
+}
+
+
 async function subscribeUserToNFTChannel(payload: any) {
   const { channel_id, client_role, client_id,sent_timestamp } = payload
   console.log("subscribeUserToNFTChannel", payload)
@@ -280,16 +360,22 @@ async function transformBroadcastMessage(eventMessage: any) {
   }
 }
 
-async function getReceiverList(eventMessagePayload: any) {
+async function getReceiverList(eventMessagePayload: any, options?: any) {
   const { channel_type, channel_id, action } = eventMessagePayload;
   let receiverList: string[] = [];
 
   console.log("Get Receiver List", action, channel_type, channel_id)
   
-  if (action === "EVENT:SUBSCRIBE") {
+  if (options?.toAll) {
+    receiverList = Object.keys($SSE.activeResponder)
+  } else if (action === "EVENT:SUBSCRIBE") {
+    console.log("Get Reveicer List for Event Subscribe")
     receiverList = await receiverListOfEventSubscribe(eventMessagePayload)
   } else if (action === "EVENT:PUBLISH") {
+    console.log("Get Reveicer List for Event Publish")
     receiverList = await receiverListOfEventPublish(eventMessagePayload)
+  } else {
+    console.log("Action is not match")
   }
 
   return receiverList
@@ -313,6 +399,10 @@ async function receiverListOfEventSubscribe(eventMessagePayload: any) {
 
 async function receiverListOfEventPublish(eventMessagePayload: any) {
   const { channel_type, channel_id, action, event_code } = eventMessagePayload;
+
+  console.log("====================== receiverListOfEventPublish =======================\n")
+  console.log(eventMessagePayload)
+  console.log("=============================================\n")
   if (
     event_code === "NFT:SELLINVOLVE:OFFERPRICE:SET"
     || event_code === "NFT:SELLINVOLVE:OFFERPRICE:UPDATE"

@@ -1,3 +1,4 @@
+import keccak from 'keccak';
 export * from "./pubsub"
 
 export function createResponseResult (actionResult: any) {
@@ -28,4 +29,16 @@ export function reviver(key: string, value: any) {
     }
   }
   return value
+}
+
+
+/* 
+ //
+ // Utilities
+ //
+*/
+
+export function hashCreate(arg: string | string[], options = { digest: "hex" }): string {
+  const content_ = Array.isArray(arg) ? arg.join("") : arg
+  return keccak('keccak256').update(content_).digest(options.digest);
 }

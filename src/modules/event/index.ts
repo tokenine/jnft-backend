@@ -72,7 +72,7 @@ export async function handler (req: Request, res: Response, opt: any = {}) {
 
     return res.status(result.status.code).json(result)
  
-  } catch (error) {
+  } catch (error: any) {
     const { message } = error;
     logger({ error })
     return res.status(400).json({ status: { error: true, message }})
@@ -81,7 +81,7 @@ export async function handler (req: Request, res: Response, opt: any = {}) {
 
 function logger(args: any) {
   const { debug = true, payload, result, internalResult, error } = args
-  debug && console.log(`Debug Event::${payload.event_id} => Result`, result,
+  debug && console.log(`Debug Event::${payload?.event_id} => Result`, result,
     `\n=====================`,
     internalResult,
     `\n==================================================`,
@@ -407,11 +407,11 @@ async function publish (payload: IEventPayload) {
     }
 
     // validateEventMessage(payload)
-
-    console.log("Publish Payload", payload)
-
+    console.log("PUBLISH::", payload)
+    
     const KEY = `EVENT_MESSAGE_QUEUE:MAIN`;
     const [ EVENTID, SCORE, ENCODEDMESSAGE ] = encodeEventMessage(payload)
+    console.log("Publish Payload", payload, "ENCODED MESSAGE:", ENCODEDMESSAGE)
     const RedisResults = []
     
     RedisResults.push({ action: "ADD_EVENT_QUEUE" , result: await $Redis.clients.db.EMQ.zadd(KEY, SCORE, EVENTID) })

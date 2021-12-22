@@ -1,14 +1,14 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import * as modulesType from "./module.d.ts";
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import compression from 'compression';
 import Package, { version, latestUpdate } from './package.json';
 import corsConfig from './configs/cors';
 import { $SSE, $Redis, User, Event } from './modules';
-
-dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const app: Express = express();
@@ -24,6 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 /* 
   Core Routes
 */
+
 app.all('/', cors(), healthcheckHandler);
 app.get('/sse', $SSE.handler);
 app.get('/sse/:clientid', $SSE.handler);
@@ -56,9 +57,11 @@ app.get('/debug/list/sse-client', (req: Request, res: Response) => {
   const list = Object.keys($SSE.clients).map((role: string) => Object.keys($SSE.clients[role])).reduce((_list, __list) => [..._list, ...__list]);
   return res.json({ total: list.length, list, responder: Object.keys($SSE.activeResponder) })
 });
+
 app.get('/debug/pubsub/list', (req: Request, res: Response) => {
   return res.json(Object.keys($Redis.clients));
 });
+
 app.get('/debug/pubsub/:subscriber_id', (req: Request, res: Response) => {
   const { subscriber_id } = req.params;
   if (!subscriber_id) {
@@ -140,7 +143,7 @@ async function oldSubscribeHandler(req: Request, res: Response) {
     const message = `Subscribe ${CLIENT} to ${CHANNEL_TYPE}::${channel_id.toLowerCase()}${EVENT}`;
     console.log(message);
     return res.json({ message })
-  } catch (error) {
+  } catch (error: any) {
     const { message } = error;
     return res.status(400).json({ status: { error: true, message }})
   }
@@ -173,7 +176,7 @@ async function debugSubscribeHandler(req: Request, res: Response) {
     const message = `Subscribe ${CLIENT} to ${CHANNEL_TYPE}::${channel_id.toLowerCase()}${EVENT}`;
     console.log(message);
     return res.json({ message })
-  } catch (error) {
+  } catch (error: any) {
     const { message } = error;
     return res.status(400).json({ status: { error: true, message }})
   }

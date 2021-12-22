@@ -1,11 +1,6 @@
 const $whitelist = [
   `https://hoppscotch.io`,
   `https://proxy.hoppscotch.io`,
-  `https://tokenine-nft-khonkaen.web.app`,
-  `http://localhost:5001`,
-  `http://localhost:5002`,
-  `https://test.jnft.digital`,
-  `https://jnft-dev.web.app`,
 ]
   
 export default function (whitelist: string[], options?: any) {
@@ -13,7 +8,12 @@ export default function (whitelist: string[], options?: any) {
     origin: (origin: string, callback: Function) => {
       const _whitelist = [ ...$whitelist, ...whitelist ]
 
-      if (!origin || _whitelist.indexOf(origin) !== -1) {
+      if (!origin
+        || _whitelist.indexOf(origin) !== -1
+        || origin.includes("://127.0.")
+        || origin.includes("://192.168.")
+        || origin.includes("://localhost")
+      ) {
         callback(null, true)
       } else {
         callback(new Error("CORS not allow for this origin"))

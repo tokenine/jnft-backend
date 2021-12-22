@@ -1,4 +1,4 @@
-import { Tedis } from 'tedis';
+// import { Tedis } from 'tedis';
 import IORedis from 'ioredis';
 import { defaultMessageListener, defaultPatternListener } from '../pubsub';
 
@@ -39,13 +39,13 @@ createSubscriber("main", defaultMessageListener);
 
 export default $Redis
 
-function connectTedis(opts?: any) {
-  return new Tedis({
-    host: "127.0.0.1",
-    port: 6379,
-    ...opts
-  })
-}
+// function connectTedis(opts?: any) {
+//   return new Tedis({
+//     host: "127.0.0.1",
+//     port: 6379,
+//     ...opts
+//   })
+// }
 
 function connectIORedis(opts?: any) {
   return new IORedis(opts)
