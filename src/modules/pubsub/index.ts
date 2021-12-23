@@ -2,7 +2,7 @@ import { Request, Response } from 'express'
 import keccak from 'keccak';
 import { $SSE, $Redis } from '..';
 import { publishMessageEncoder, reviver } from "../../functions";
-import { testSendNotificationToFirestore } from "../firebase"
+import { setNotificationsToFirestore, testSendNotificationToFirestore } from "../firebase"
 
 
 export const $PubSub = {
@@ -100,7 +100,7 @@ createObserver("event-message-broadcast",
   
         const eventMessage = type === "JSON" && Object.fromEntries(JSON.parse(rawEventMessage, reviver))
         await messageBroadcastByEvent({ eventMessage, EVENTID, SCORE })
-  
+
         // TODOs: 
         // Add On success handling
         // Add On fail handling
@@ -205,8 +205,11 @@ async function eventNFT_SELLINVOLVE_OFFERPRICE({ eventMessage, SCORE, EVENTID }:
   // const receiverList = await getReceiverList(eventMessage);
   const receiverList = await getReceiverList(eventMessage);
 
+
   // Transform Message
   const broadcastMessage = await transformBroadcastMessage(eventMessage);
+
+  await setNotificationsToFirestore(receiverList, { content: { message: broadcastMessage?.eventMessage }, broadcastMessage })
   
   // Broadcast the message out
   $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);

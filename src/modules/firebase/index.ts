@@ -50,6 +50,11 @@ export function testSendNotificationToFirestore() {
     setNotifications(targets, timestamp, content).then().catch()
 }
 
+export function setNotificationsToFirestore(targets: any[], content: any) {
+    const timestamp = new Date().getTime()
+    setNotifications(targets, timestamp, content).then().catch()
+}
+
 export async function setNotifications(target: string[], timestamp: number, content: any) {
 
     const hash = hashCreate(JSON.stringify(content))
