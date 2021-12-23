@@ -52,6 +52,8 @@ export function testSendNotificationToFirestore() {
 
 export function setNotificationsToFirestore(targets: any[], content: any) {
     const timestamp = new Date().getTime()
+
+    console.log("CHECK: setNotificationsToFirestore", targets, content)
     setNotifications(targets, timestamp, content).then().catch()
 }
 

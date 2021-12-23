@@ -234,11 +234,14 @@ async function eventNFT_SELLINVOLVE_AUCTION({ eventMessage, SCORE, EVENTID }: an
     
     await subscribeUserToNFTChannel(eventMessage)
 
+
     $SSE.broadcastMessage([`USER::${owner}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
+    await setNotificationsToFirestore([owner], { message: "New bid to your NFT", eventMessage })
   
     // The last bidder (previous one) will get notification that one lose the auction
     if (eventMessage.data.topBid) {
       const { bidder } = eventMessage.data.topBid
+      
       $SSE.broadcastMessage([`USER::${bidder}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage, event_code: "NFT:SELLINVOLVE:AUCTION:BID:LOSE" });  
     }
   } else if (event_code === "NFT:SELLINVOLVE:AUCTION:SENDNFT") {
