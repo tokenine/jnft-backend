@@ -126,6 +126,8 @@ createObserver("event-message-broadcast",
 )
 
 const messageBroadcastEventRegistry: { [eventCode: string]: any} = {
+  "NFT:SELLSETUP:SETUP": eventNFT_SELLSETUP,
+  "NFT:SELLSETUP:CANCEL": eventNFT_SELLSETUP,
   "NFT:SELLINVOLVE:OFFERPRICE:SET": eventNFT_SELLINVOLVE_OFFERPRICE,
   "NFT:SELLINVOLVE:OFFERPRICE:UPDATE": eventNFT_SELLINVOLVE_OFFERPRICE,
   "NFT:SELLINVOLVE:OFFERPRICE:CANCEL": eventNFT_SELLINVOLVE_OFFERPRICE,
@@ -196,6 +198,37 @@ async function genericMessageBroadcast({ eventMessage, SCORE, EVENTID }: any) {
 //     const result_ = manageSenderDataByEvent(event_code, eventMessage)
 //   }
 // }
+
+async function eventNFT_SELLSETUP({ eventMessage, SCORE, EVENTID }: any) {
+  console.log("eventNFT_SELLSETUP", eventMessage)
+  const { event_code, channel_id, client_id } = eventMessage
+  await $Redis.clients.db.main.hset(`NFT_INFO//${channel_id}`, `owner`, client_id)
+
+  // Subscribe user to NFT activity channel
+  await subscribeUserToNFTChannel(eventMessage)
+
+  if (event_code === "NFT:SELLSETUP:SETUP") {
+
+  } else if (event_code === "NFT:SELLSETUP:CANCEL") {
+
+  }
+  
+  // Populate message receiver list
+  // const receiverList = await getReceiverList(eventMessage);
+  const receiverList = await getReceiverList(eventMessage);
+
+
+  // Transform Message
+  const broadcastMessage = await transformBroadcastMessage(eventMessage);
+
+  await setNotificationsToFirestore(receiverList, { content: { message: broadcastMessage?.eventMessage }, broadcastMessage })
+  
+  // Broadcast the message out
+  $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
+  // Added Notification to each receiver.
+  receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
+  
+}
 
 async function eventNFT_SELLINVOLVE_OFFERPRICE({ eventMessage, SCORE, EVENTID }: any) {
   // Subscribe user to NFT activity channel
