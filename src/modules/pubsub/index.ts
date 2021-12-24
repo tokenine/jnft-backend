@@ -131,8 +131,8 @@ const messageBroadcastEventRegistry: { [eventCode: string]: any} = {
   "NFT:SELLINVOLVE:OFFERPRICE:SET": eventNFT_SELLINVOLVE_OFFERPRICE,
   "NFT:SELLINVOLVE:OFFERPRICE:UPDATE": eventNFT_SELLINVOLVE_OFFERPRICE,
   "NFT:SELLINVOLVE:OFFERPRICE:CANCEL": eventNFT_SELLINVOLVE_OFFERPRICE,
+  "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT": eventNFT_SELLINVOLVE_OFFERPRICE,
   "NFT:SELLINVOLVE:AUCTION:BID": eventNFT_SELLINVOLVE_AUCTION,
-  // "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT"
   "NFT:SELLINVOLVE:AUCTION:SENDNFT": eventNFT_SELLINVOLVE_AUCTION,
   "NFT:SELLINVOLVE:AUCTION:CLAIMNFT": eventNFT_SELLINVOLVE_AUCTION,
   "CREATOR:APPROVAL:APPROVED": eventCREATOR_APPROVAL,
@@ -209,6 +209,7 @@ async function eventNFT_SELLSETUP({ eventMessage, SCORE, EVENTID }: any) {
 
   if (event_code === "NFT:SELLSETUP:SETUP") {
 
+    
   } else if (event_code === "NFT:SELLSETUP:CANCEL") {
 
   }
@@ -221,7 +222,8 @@ async function eventNFT_SELLSETUP({ eventMessage, SCORE, EVENTID }: any) {
   // Transform Message
   const broadcastMessage = await transformBroadcastMessage(eventMessage);
 
-  await setNotificationsToFirestore(receiverList, { content: { message: broadcastMessage?.eventMessage }, broadcastMessage })
+  const addresses_ = receiverList.map((item: string) => item.replace("USER::", ""))
+  await setNotificationsToFirestore(addresses_, { message: "New NFT", broadcastMessage })
   
   // Broadcast the message out
   $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
@@ -230,27 +232,59 @@ async function eventNFT_SELLSETUP({ eventMessage, SCORE, EVENTID }: any) {
   
 }
 
+
+
 async function eventNFT_SELLINVOLVE_OFFERPRICE({ eventMessage, SCORE, EVENTID }: any) {
   // Subscribe user to NFT activity channel
+  
   await subscribeUserToNFTChannel(eventMessage)
 
   // Populate message receiver list
   // const receiverList = await getReceiverList(eventMessage);
   const receiverList = await getReceiverList(eventMessage);
 
+  console.log("eventNFT_SELLINVOLVE_OFFERPRICE: Receiver List => ", receiverList)
 
   // Transform Message
   const broadcastMessage = await transformBroadcastMessage(eventMessage);
 
-  await setNotificationsToFirestore(receiverList, { content: { message: broadcastMessage?.eventMessage }, broadcastMessage })
-  
-  // Broadcast the message out
-  $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
-  // Added Notification to each receiver.
-  receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))
+  console.log("eventNFT_SELLINVOLVE_OFFERPRICE: broadcastMessage => ", broadcastMessage)
 
+  let message = ""
+  const addresses_ = receiverList.map((item: string) => item.replace("USER::", ""))
+  // if (eventMessage.event_code === "NFT:SELLINVOLVE:OFFERPRICE:CANCEL") {
+  //   message = "Price offer withdrawed"
+  // }
+  if (
+    eventMessage.event_code === "NFT:SELLINVOLVE:OFFERPRICE:SET"
+    || eventMessage.event_code === "NFT:SELLINVOLVE:OFFERPRICE:UPDATE"
+  ) {
+    message = "New price offered"
+
+    await setNotificationsToFirestore(addresses_, { message, broadcastMessage })
+  
+    // Broadcast the message out
+    $SSE.broadcastMessage(receiverList, ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), broadcastMessage);
+    // Added Notification to each receiver.
+    receiverList.map(async (receiver_id: string) => await $Redis.clients.db.main.zadd(`EVENT:RELATED//${receiver_id}`, SCORE, EVENTID))  
+  } else if (eventMessage.event_code === "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT") {
+    // When a NFT auction session was end, and the bid winner claim the NFT
+    // The owner will get notification that the bid winner has claim their NFT
+    const receiver = eventMessage.data.receiver
+
+    console.log("CHECK: NFT:SELLINVOLVE:OFFERPRICE:SENDNFT", eventMessage)
+    await setNotificationsToFirestore([receiver], { message: "You got a new NFT", eventMessage })
+    await $Redis.clients.db.main.hset(`NFT_INFO//${eventMessage.channel_id}`, `owner`, receiver)
+
+    $SSE.broadcastMessage([`USER::${receiver}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
+
+    // And creator (if not the same as owner) will get receive for a message (with commission)
+
+  }
   
 }
+
+
 
 async function eventNFT_SELLINVOLVE_AUCTION({ eventMessage, SCORE, EVENTID }: any) {
   const { event_code, channel_id } = eventMessage
@@ -273,27 +307,33 @@ async function eventNFT_SELLINVOLVE_AUCTION({ eventMessage, SCORE, EVENTID }: an
   
     // The last bidder (previous one) will get notification that one lose the auction
     if (eventMessage.data.topBid) {
-      const { bidder } = eventMessage.data.topBid
-      
-      $SSE.broadcastMessage([`USER::${bidder}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage, event_code: "NFT:SELLINVOLVE:AUCTION:BID:LOSE" });  
+      const { account } = eventMessage.data.topBid
+      await setNotificationsToFirestore([ account ], { message: "Your bid has been surpassed", eventMessage })
+      $SSE.broadcastMessage([`USER::${account}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage, event_code: "NFT:SELLINVOLVE:AUCTION:BID:LOSE" });  
     }
+
+
   } else if (event_code === "NFT:SELLINVOLVE:AUCTION:SENDNFT") {
     // When a NFT auction session was end, and seller send the NFT to a bid winner
 
     // The bid winner will get notification that one has own the NFT
     const { bidWinner } = eventMessage.data
+    await setNotificationsToFirestore([bidWinner], { message: "You won an auction and received the NFT", eventMessage })
+    await $Redis.clients.db.main.hset(`NFT_INFO//${channel_id}`, `owner`, bidWinner)
     $SSE.broadcastMessage([`USER::${bidWinner}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
 
     // And creator (if not the same as owner) will get receive for a message (with commission)
+
 
   } else if (event_code === "NFT:SELLINVOLVE:AUCTION:CLAIMNFT") {
     // When a NFT auction session was end, and the bid winner claim the NFT
     // The owner will get notification that the bid winner has claim their NFT
     const owner_ = eventMessage.data.owner
+    await setNotificationsToFirestore([owner_], { message: "Your Auction NFT was claimed", eventMessage })
+    await $Redis.clients.db.main.hset(`NFT_INFO//${channel_id}`, `owner`, eventMessage.data.bidWinner)
     $SSE.broadcastMessage([`USER::${owner_}`], ({ receiverId, payload }: any) => ({ receiverId, event: "message", id: EVENTID, data: payload }), { ...eventMessage });  
 
     // And creator (if not the same as owner) will get receive for a message (with commission)
-
   }
   // Populate message receiver list
   // Send event message to owner
@@ -451,8 +491,8 @@ async function receiverListOfEventPublish(eventMessagePayload: any) {
     // Only owner will get receive message
     
     const owner = await $Redis.clients.db.main.hget(`NFT_INFO//${channel_id}`, `owner`)
+    console.log("receiverListOfEventPublish => Set New Owner for:", channel_id, owner)
     return [`USER::${owner}`]
-    
     
     
   } else if (event_code === "NFT:SELLINVOLVE:OFFERPRICE:SENDNFT") {
